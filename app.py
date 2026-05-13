@@ -5,7 +5,6 @@ ollama deve girare in locale per la demo live
 """
 
 import os
-import sys
 import json
 import requests
 import torch
@@ -14,9 +13,8 @@ import plotly.graph_objects as go
 import streamlit as st
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
-# importa i prompt dalla pipeline ollama senza __init__.py
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "ollama_pipeline"))
-from prompts import zero_shot_prompt, few_shot_prompt
+# importa i prompt dalla pipeline ollama
+from ollama_pipeline.prompts import zero_shot_prompt, few_shot_prompt
 
 # ── configurazione pagina ──────────────────────────────────────────────────────
 
@@ -371,6 +369,90 @@ with tab2:
 
     st.divider()
 
+    # ── SEZIONE: STRUTTURA DEL CODICE ──
+    st.subheader("Struttura del codice")
+    
+    st.markdown("""
+    Abbiamo riadattato il codice della fine-tuning su SST-2 (sentiment analysis) sostituendo il dataset 
+    e aggiungendo il supporto per 4 configurazioni di iperparametri da confrontare in sequenza.
+    """)
+    
+    col_struct1, col_struct2, col_struct3 = st.columns(3)
+    
+    with col_struct1:
+        st.markdown("""
+        <div class="card" style="background:#fff; border:1px solid #e8e4df; border-radius:12px; padding:16px; margin:8px 0">
+        <b style="font-size:0.85rem; color:#7a7470; display:block; margin-bottom:8px">config.py</b>
+        <div style="font-size:0.85rem; color:#7a7470; line-height:1.5">
+        Pannello di controllo. Tutte le costanti del progetto: modello, dataset, 4 configurazioni iperparametri. 
+        Nessun numero hardcoded altrove.
+        </div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown("""
+        <div class="card" style="background:#fff; border:1px solid #e8e4df; border-radius:12px; padding:16px; margin:8px 0">
+        <b style="font-size:0.85rem; color:#7a7470; display:block; margin-bottom:8px">data/dataset.py</b>
+        <div style="font-size:0.85rem; color:#7a7470; line-height:1.5">
+        Scarica il dataset da Hugging Face, tokenizza gli articoli, riduce a 1.000 esempi.
+        </div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col_struct2:
+        st.markdown("""
+        <div class="card" style="background:#fff; border:1px solid #e8e4df; border-radius:12px; padding:16px; margin:8px 0">
+        <b style="font-size:0.85rem; color:#7a7470; display:block; margin-bottom:8px">model/model.py</b>
+        <div style="font-size:0.85rem; color:#7a7470; line-height:1.5">
+        Carica DistilBERT pre-addestrato e aggiunge un layer di classificazione con 2 output (FAKE/REAL).
+        </div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown("""
+        <div class="card" style="background:#fff; border:1px solid #e8e4df; border-radius:12px; padding:16px; margin:8px 0">
+        <b style="font-size:0.85rem; color:#7a7470; display:block; margin-bottom:8px">training/metrics.py</b>
+        <div style="font-size:0.85rem; color:#7a7470; line-height:1.5">
+        Calcola l'accuracy. Il Trainer la chiama automaticamente alla fine di ogni epoca.
+        </div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col_struct3:
+        st.markdown("""
+        <div class="card" style="background:#fff; border:1px solid #e8e4df; border-radius:12px; padding:16px; margin:8px 0">
+        <b style="font-size:0.85rem; color:#7a7470; display:block; margin-bottom:8px">training/trainer.py</b>
+        <div style="font-size:0.85rem; color:#7a7470; line-height:1.5">
+        Assembla Trainer HuggingFace con dataset, modello e metrica. Gestisce salvataggio checkpoint.
+        </div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown("""
+        <div class="card" style="background:#fff; border:1px solid #e8e4df; border-radius:12px; padding:16px; margin:8px 0">
+        <b style="font-size:0.85rem; color:#7a7470; display:block; margin-bottom:8px">train.py</b>
+        <div style="font-size:0.85rem; color:#7a7470; line-height:1.5">
+        Entry point. Carica i dati una volta, poi scorre le 4 configurazioni. Per ognuna carica un modello fresco e addestra da zero.
+        </div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    st.divider()
+
+    # ── SEZIONE: IPERPARAMETRI ──
+    st.subheader("I 4 iperparametri: cosa significano in concreto")
+    
+    st.markdown("""
+    | Parametro | Cosa significa in concreto | Valore testato |
+    |---|---|---|
+    | **lr** (learning rate) | Il "passo" con cui il modello corregge i propri errori. **2e-5** = passi piccoli e stabili. **5e-5** = passi grandi, impara più in fretta ma rischia di saltare il punto ottimale. | `2e-5` vs `5e-5` |
+    | **batch** | Quanti articoli vede il modello prima di aggiornare i pesi. **Batch 16**: il modello vede 16 articoli, calcola l'errore medio su tutti, aggiorna. **Batch 8**: aggiorna il doppio delle volte, su meno esempi. | `16` vs `8` |
+    | **epochs** | Quante volte il modello vede l'intero dataset. Con 1.000 articoli e 3 epoche, il modello li vede 3.000 volte in totale. Più epoche → rischio di imparare a memoria. | `3` vs `5` |
+    | **wd** (weight decay) | Regolarizzazione. Ad ogni step i pesi vengono ridotti dell'1% per evitare che crescano troppo e causino overfitting. | `0.01` (fisso) |
+    """)
+    
+    st.divider()
+
     # metriche riassuntive
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Modello", "DistilBERT")
@@ -472,6 +554,24 @@ with tab2:
         )
         st.plotly_chart(fig_loss, use_container_width=True)
 
+    st.divider()
+    st.subheader("Interpretazione dei risultati")
+    
+    st.markdown("""
+    La **loss** misura quanto il modello sbaglia. Durante il training deve scendere sia sulla curva di training (linea blu) 
+    che su quella di validation (linea arancione tratteggiata). Se la training loss scende ma la validation sale, 
+    si ha **overfitting** — il modello impara a memoria il training set.
+    """)
+    
+    st.markdown("""
+    <div class="info-box">
+    <b>Come leggere i grafici:</b><br>
+    La linea blu (training loss) deve sempre scendere. La linea arancione tratteggiata (validation loss) deve scendere insieme. 
+    In <b>more_epochs</b>, dopo l'epoca 2 la validation loss comincia a risalire leggermente mentre la training continua a scendere: 
+    segnale iniziale di overfitting. In <b>small_batch</b> entrambe scendono in modo coerente fino alla fine.
+    </div>
+    """, unsafe_allow_html=True)
+    
     st.divider()
     st.subheader("Analisi impatto iperparametri")
 
